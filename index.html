@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#0B3356">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tareas">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="manifest" href="./manifest.json">
+<title>Tareas</title>
+<style>
+  :root{
+    /* Identidad corporativa OCA (misma familia que el Gantt) */
+    --navy:#0B3356; --navy-2:#0f4475; --navy-soft:#dbe7f0;
+    --paper:#f8fafc; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0;
+    --green:#3c6e2a; --green-soft:#dceccb; --amber:#8a6d00; --amber-soft:#fdf0c2;
+    --red:#b83227; --red-soft:#fbdcd8;
+    --shadow:0 1px 3px rgba(15,23,42,.06), 0 1px 2px rgba(15,23,42,.04);
+    --safe-t:env(safe-area-inset-top); --safe-b:env(safe-area-inset-bottom);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; background:var(--paper); color:var(--ink);
+    font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;}
+  body{padding-bottom:calc(96px + var(--safe-b));}
+
+  /* Cabecera corporativa OCA (patrón Gantt: barra azul, logo izquierda, bloque de título) */
+  header{position:sticky; top:0; z-index:20; background:var(--navy); color:#fff;
+    padding:calc(10px + var(--safe-t)) 18px 10px; display:flex; align-items:center; gap:14px;}
+  .hdr-logo{flex:0 0 auto; display:flex; align-items:center;}
+  .hdr-logo img{display:block; height:35px; width:auto;}
+  .logo-fallback{font-size:20px; font-weight:800; letter-spacing:.5px; color:#fff; line-height:1;}
+  .logo-fallback small{display:block; font-size:8.5px; font-weight:600; letter-spacing:.22em; opacity:.7; margin-top:2px;}
+  .hdr-title{flex:1; min-width:0;}
+  .hdr-title .l1{font-size:20px; font-weight:700; letter-spacing:0; line-height:1.1; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .hdr-title .l2{font-size:11px; font-weight:300; opacity:.85; margin-top:2px; letter-spacing:.2px;}
+  .hdr-meta{flex:0 0 auto; display:flex; flex-direction:column; align-items:flex-end; gap:4px;}
+  .hdr-count{font-size:12px; opacity:.8;}
+  .sync-dot{width:7px; height:7px; border-radius:50%; background:#7fb3e0; opacity:.4; transition:opacity .2s;}
+  .sync-dot.active{opacity:1;}
+
+  main{max-width:680px; margin:0 auto; padding:8px 14px 0;}
+
+  /* Area group */
+  .area{margin:14px 0;}
+  .area-head{display:flex; align-items:center; gap:9px; padding:8px 4px; cursor:pointer; user-select:none;}
+  .area-dot{width:11px; height:11px; border-radius:3px; flex:none;}
+  .area-name{font-weight:600; font-size:13px; letter-spacing:.5px; text-transform:uppercase; color:var(--navy);}
+  .area-count{font-size:12px; color:var(--muted); margin-left:auto;}
+  .area-chevron{color:var(--muted); transition:transform .18s; font-size:12px;}
+  .area.collapsed .area-chevron{transform:rotate(-90deg);}
+  .area.collapsed .project{display:none;}
+
+  .project{margin:2px 0 6px;}
+  .project-label{font-size:12px; color:var(--muted); padding:6px 4px 4px 22px; font-weight:500;}
+
+  /* Task card */
+  .task{position:relative; display:flex; gap:12px; align-items:flex-start;
+    background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 13px 12px 16px;
+    margin:7px 0; box-shadow:var(--shadow); overflow:hidden;}
+  .task::before{content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--rail,#ccc);}
+  .task.done{opacity:.55;}
+  .status-btn{flex:none; width:24px; height:24px; border-radius:50%; border:2px solid var(--muted);
+    background:transparent; margin-top:1px; cursor:pointer; position:relative;}
+  .status-btn.doing{border-color:var(--amber);}
+  .status-btn.doing::after{content:""; position:absolute; inset:3px; border-radius:50%;
+    background:conic-gradient(var(--amber) 50%, transparent 0);}
+  .status-btn.done{border-color:var(--green); background:var(--green);}
+  .status-btn.done::after{content:"✓"; color:#fff; font-size:13px; position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;}
+  .task-body{flex:1; min-width:0;}
+  .task-title{font-size:15px; line-height:1.35;}
+  .task.done .task-title{text-decoration:line-through; text-decoration-color:var(--muted);}
+  .task-meta{display:flex; flex-wrap:wrap; gap:6px; margin-top:7px; align-items:center;}
+  .pill{font-size:11.5px; padding:2px 8px; border-radius:20px; font-weight:500; white-space:nowrap;}
+  .pill.owner{background:var(--navy-soft); color:var(--navy);}
+  .pill.due{background:#eef1f6; color:var(--muted);}
+  .pill.due.overdue{background:var(--red-soft); color:var(--red);}
+  .pill.prio-high{background:var(--red-soft); color:var(--red);}
+  .pill.prio-med{background:var(--amber-soft); color:var(--amber);}
+  .pill.prio-low{background:#eef1f6; color:var(--muted);}
+
+  /* FAB */
+  .fab{position:fixed; right:18px; bottom:calc(20px + var(--safe-b)); z-index:30;
+    width:56px; height:56px; border-radius:50%; border:none; background:var(--navy); color:#fff;
+    font-size:30px; line-height:1; box-shadow:0 6px 20px rgba(11,51,86,.4); cursor:pointer;}
+
+  /* Sheet / modal */
+  .scrim{position:fixed; inset:0; background:rgba(26,34,48,.4); z-index:40; display:none;}
+  .scrim.open{display:block;}
+  .sheet{position:fixed; left:0; right:0; bottom:0; z-index:50; background:var(--paper);
+    border-radius:18px 18px 0 0; padding:14px 16px calc(14px + var(--safe-b));
+    transform:translateY(100%); transition:transform .25s ease; max-height:92vh; overflow-y:auto;
+    max-width:680px; margin:0 auto;}
+  .sheet.open{transform:translateY(0);}
+  .sheet h2{font-size:15px; margin:0 0 10px;}
+  label{display:block; font-size:10.5px; color:var(--muted); margin:9px 0 3px; font-weight:600;
+    letter-spacing:.02em; text-transform:uppercase;}
+  input,select,textarea{width:100%; font-family:inherit; font-size:13.5px; padding:8px 10px;
+    border:1px solid var(--line); border-radius:9px; background:#fff; color:var(--ink); appearance:none;}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--navy); border-color:var(--navy);}
+  textarea{min-height:52px; resize:vertical;}
+  .row{display:flex; gap:8px;}
+  .row>div{flex:1;}
+  .sheet-actions{display:flex; gap:8px; margin-top:16px;}
+  button.primary{flex:1; background:var(--navy); color:#fff; border:none; padding:11px; border-radius:10px;
+    font-weight:600; font-size:14px; cursor:pointer;}
+  button.ghost{background:transparent; color:var(--ink); border:1px solid var(--line); padding:11px 16px;
+    border-radius:10px; font-size:14px; cursor:pointer;}
+  button.danger{background:transparent; color:var(--red); border:none; font-size:13px; cursor:pointer;
+    margin-top:10px; width:100%; padding:6px;}
+
+  /* Empty / config / error states */
+  .state{text-align:center; color:var(--muted); padding:60px 24px;}
+  .state h2{color:var(--ink); font-size:18px; margin:0 0 8px;}
+  .state code{background:#F1EFEA; padding:2px 6px; border-radius:5px; font-size:13px;}
+  .toast{position:fixed; left:50%; bottom:calc(90px + var(--safe-b)); transform:translateX(-50%);
+    background:var(--ink); color:#fff; padding:11px 16px; border-radius:10px; font-size:13.5px; z-index:60;
+    opacity:0; pointer-events:none; transition:opacity .2s; max-width:90%; text-align:center;}
+  .toast.show{opacity:1;}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;}}
+</style>
+</head>
+<body>
+<header>
+  <div class="hdr-logo">
+    <!-- LOGO OCA — fichero logo-oca.png en la raíz del repo.
+         Si falta, la cabecera muestra el texto "OCA GLOBAL". El tamaño se controla
+         en el CSS, en .hdr-logo img{height:...}. -->
+    <img src="./logo-oca.png" alt="OCA Global"
+         onerror="this.style.display='none';document.getElementById('logoFallback').style.display='block'">
+    <span class="logo-fallback" id="logoFallback" style="display:none">OCA<small>GLOBAL</small></span>
+  </div>
+  <div class="hdr-title">
+    <div class="l1">JST TM</div>
+    <div class="l2">Joan Soler's Task Manager</div>
+  </div>
+  <div class="hdr-meta">
+    <span class="hdr-count" id="hdrCount"></span>
+    <span class="sync-dot" id="syncDot"></span>
+  </div>
+</header>
+
+<main id="app"><div class="state"><h2>Cargando…</h2></div></main>
+
+<button class="fab" id="fab" aria-label="Nueva tarea">+</button>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// CONFIGURACIÓN — rellena estos dos valores y nada más.
+// ============================================================
+const API_URL = 'https://script.google.com/a/macros/ocaglobal.com/s/AKfycbxIf91g7sVbjfavqlHo5D_rw_E4P4fikjCFT-RiO3G2y7Ixidb2EXFIX3x770pDnxnPBA/exec';   // la URL .../exec del despliegue
+const TOKEN   = 'oca-tareas-7H2k9Lm4QzXp';               // el mismo SHARED_TOKEN del Code.gs
+// ============================================================
+
+const PRIORITIES = [['','—'],['low','Baja'],['med','Media'],['high','Alta']];
+const STATUSES   = [['todo','Pendiente'],['doing','En curso'],['done','Hecha']];
+
+const state = { tasks:{}, areas:[], owners:[], cursor:null, collapsed:{}, poll:null };
+const $ = (id) => document.getElementById(id);
+
+// ---- API client -------------------------------------------------
+// POST como "simple request" (text/plain, sin cabeceras custom) para no
+// disparar el preflight CORS que Apps Script no contesta. Token en el body.
+async function api(action, payload){
+  const res = await fetch(API_URL, {
+    method:'POST',
+    headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action, token:TOKEN, payload: payload||{} })
+  });
+  return res.json();
+}
+
+// ---- Arranque ---------------------------------------------------
+async function boot(){
+  if (API_URL.startsWith('PEGA_AQUI')){
+    $('app').innerHTML = `<div class="state"><h2>Falta configurar</h2>
+      Abre <code>index.html</code> y rellena <code>API_URL</code> y <code>TOKEN</code> arriba del script.</div>`;
+    return;
+  }
+  try{
+    const r = await api('bootstrap');
+    if(!r.ok){ return fail(r.error); }
+    state.areas  = r.data.areas || [];
+    state.owners = r.data.owners || [];
+    state.tasks  = {};
+    (r.data.tasks||[]).forEach(t => state.tasks[t.id] = t);
+    state.cursor = r.server_time;
+    render();
+    startPolling();
+  }catch(e){
+    fail({ message:'No se pudo contactar con el servidor. Revisa la URL y el despliegue.' });
+  }
+}
+
+function fail(err){
+  $('app').innerHTML = `<div class="state"><h2>Algo falló</h2>${(err&&err.message)||'Error desconocido'}</div>`;
+}
+
+// ---- Sincronización (polling + foco) ----------------------------
+function startPolling(){
+  clearInterval(state.poll);
+  state.poll = setInterval(sync, 20000);
+  document.addEventListener('visibilitychange', () => { if(!document.hidden) sync(); });
+}
+
+async function sync(){
+  if(!state.cursor) return;
+  $('syncDot').classList.add('active');
+  try{
+    const r = await api('listSince', { since: state.cursor });
+    if(r.ok){
+      let changed = false;
+      (r.data.tasks||[]).forEach(t => {
+        const local = state.tasks[t.id];
+        // dedupe por (id, version): aplica solo si es nueva o trae versión mayor
+        if(!local || Number(t.version) > Number(local.version)){
+          if(t.deleted) delete state.tasks[t.id]; else state.tasks[t.id] = t;
+          changed = true;
+        }
+      });
+      state.cursor = r.server_time;
+      if(changed) render();
+    }
+  }catch(e){ /* red intermitente: lo reintenta el siguiente ciclo */ }
+  setTimeout(() => $('syncDot').classList.remove('active'), 400);
+}
+
+// ---- Escrituras -------------------------------------------------
+async function upsert(task, baseVersion){
+  const r = await api('upsert', { task, base_version: baseVersion });
+  if(r.ok){ state.tasks[r.data.task.id] = r.data.task; render(); return true; }
+  if(r.error && r.error.code === 'VERSION_CONFLICT'){ showConflict(task, r.data.task); return false; }
+  toast((r.error&&r.error.message)||'No se pudo guardar'); return false;
+}
+
+async function removeTask(id){
+  const local = state.tasks[id]; if(!local) return;
+  const r = await api('softDelete', { id, base_version: local.version });
+  if(r.ok){ delete state.tasks[id]; render(); toast('Tarea eliminada'); return; }
+  if(r.error && r.error.code === 'VERSION_CONFLICT'){
+    state.tasks[id] = r.data.task; render(); toast('Cambió en otro sitio; revísala antes de borrar'); return;
+  }
+  toast('No se pudo eliminar');
+}
+
+// Toggle de estado optimista (gesto frecuente): aplica ya, revierte si falla.
+async function cycleStatus(id){
+  const t = state.tasks[id]; if(!t) return;
+  const order = ['todo','doing','done'];
+  const next = order[(order.indexOf(t.status)+1) % order.length];
+  const prev = { ...t };
+  t.status = next; render();                    // optimista
+  const r = await api('upsert', { task:{ id, status:next }, base_version: prev.version });
+  if(r.ok){ state.tasks[id] = r.data.task; render(); }
+  else if(r.error && r.error.code === 'VERSION_CONFLICT'){
+    state.tasks[id] = r.data.task; render(); showConflict({ id, status:next }, r.data.task);
+  } else { state.tasks[id] = prev; render(); toast('No se pudo cambiar el estado'); }
+}
+
+// ---- Render -----------------------------------------------------
+function render(){
+  const live = Object.values(state.tasks).filter(t => !t.deleted);
+  $('hdrCount').textContent = live.length ? `${live.length} activas` : '';
+  if(!live.length){
+    $('app').innerHTML = `<div class="state"><h2>Sin tareas</h2>Toca + para crear la primera.</div>`;
+    return;
+  }
+  // Orden de áreas: las de config primero (por area_sort), luego cualquier área suelta.
+  const areaOrder = {}; state.areas.forEach((a,i)=> areaOrder[a.name] = i);
+  const areaColor = {}; state.areas.forEach(a => areaColor[a.name] = a.color || '#9AA0A6');
+  const byArea = {};
+  live.forEach(t => { (byArea[t.area||'Sin área'] ||= []).push(t); });
+  const areaNames = Object.keys(byArea).sort((a,b)=>
+    (areaOrder[a]??999) - (areaOrder[b]??999) || a.localeCompare(b));
+
+  let html = '';
+  for(const area of areaNames){
+    const tasks = byArea[area];
+    const color = areaColor[area] || '#9AA0A6';
+    const collapsed = state.collapsed[area] ? 'collapsed' : '';
+    // agrupar por proyecto dentro del área
+    const byProj = {};
+    tasks.forEach(t => { (byProj[t.project||''] ||= []).push(t); });
+    const projNames = Object.keys(byProj).sort((a,b)=> a.localeCompare(b));
+    let inner = '';
+    for(const proj of projNames){
+      const list = byProj[proj].sort((a,b)=> (a.sort_index-b.sort_index) || a.title.localeCompare(b.title));
+      inner += `<div class="project">`;
+      if(proj) inner += `<div class="project-label">${esc(proj)}</div>`;
+      inner += list.map(t => taskCard(t, color)).join('');
+      inner += `</div>`;
+    }
+    html += `<section class="area ${collapsed}">
+      <div class="area-head" onclick="toggleArea('${escAttr(area)}')">
+        <span class="area-dot" style="background:${color}"></span>
+        <span class="area-name">${esc(area)}</span>
+        <span class="area-count">${tasks.length}</span>
+        <span class="area-chevron">▼</span>
+      </div>${inner}</section>`;
+  }
+  $('app').innerHTML = html;
+}
+
+function taskCard(t, color){
+  const due = dueLabel(t.due_date);
+  const prio = t.priority ? `<span class="pill prio-${t.priority}">${prioLabel(t.priority)}</span>` : '';
+  const owner = t.owner ? `<span class="pill owner">↩ ${esc(t.owner)}</span>` : '';
+  return `<div class="task ${t.status==='done'?'done':''}" style="--rail:${color}">
+    <button class="status-btn ${t.status}" onclick="event.stopPropagation();cycleStatus('${t.id}')" aria-label="Cambiar estado"></button>
+    <div class="task-body" onclick="openEdit('${t.id}')">
+      <div class="task-title">${esc(t.title)}</div>
+      <div class="task-meta">${owner}${prio}${due}</div>
+    </div>
+  </div>`;
+}
+
+function toggleArea(name){ state.collapsed[name] = !state.collapsed[name]; render(); }
+
+// ---- Formulario (crear / editar) --------------------------------
+function openNew(){ openSheet(null); }
+function openEdit(id){ openSheet(state.tasks[id]); }
+
+function openSheet(t){
+  const isEdit = !!t;
+  const areas  = state.areas.filter(a=>a.active!==false);
+  const owners = state.owners.filter(o=>o.active!==false);
+  const projects = [...new Set(Object.values(state.tasks).filter(x=>!x.deleted&&x.project).map(x=>x.project))];
+  const opt = (arr, sel) => arr.map(([v,l])=>`<option value="${v}" ${v===sel?'selected':''}>${l}</option>`).join('');
+  const aOpt = areas.map(a=>`<option value="${escAttr(a.name)}" ${t&&t.area===a.name?'selected':''}>${esc(a.name)}</option>`).join('');
+  const oOpt = `<option value="">— (yo)</option>` + owners.map(o=>`<option value="${escAttr(o.name)}" ${t&&t.owner===o.name?'selected':''}>${esc(o.name)}</option>`).join('');
+  const dl = projects.map(p=>`<option value="${escAttr(p)}">`).join('');
+
+  $('sheet').innerHTML = `
+    <h2>${isEdit?'Editar tarea':'Nueva tarea'}</h2>
+    <label>Título</label>
+    <input id="f_title" value="${t?escAttr(t.title):''}" placeholder="¿Qué hay que hacer?">
+    <label>Área</label>
+    <select id="f_area">${areas.length?'':'<option value="">(define áreas en config)</option>'}${aOpt}</select>
+    <label>Proyecto</label>
+    <input id="f_project" list="projlist" value="${t?escAttr(t.project):''}" placeholder="Opcional">
+    <datalist id="projlist">${dl}</datalist>
+    <div class="row">
+      <div><label>Responsable / espero de</label><select id="f_owner">${oOpt}</select></div>
+    </div>
+    <div class="row">
+      <div><label>Prioridad</label><select id="f_priority">${opt(PRIORITIES, t?t.priority:'')}</select></div>
+      <div><label>Estado</label><select id="f_status">${opt(STATUSES, t?t.status:'todo')}</select></div>
+    </div>
+    <label>Fecha límite</label>
+    <input id="f_due" type="date" value="${t?escAttr(t.due_date):''}">
+    <label>Notas</label>
+    <textarea id="f_notes" placeholder="Opcional">${t?esc(t.notes):''}</textarea>
+    <div class="sheet-actions">
+      <button class="ghost" onclick="closeSheet()">Cancelar</button>
+      <button class="primary" onclick="saveFromForm(${t?`'${t.id}'`:'null'})">${isEdit?'Guardar cambios':'Crear tarea'}</button>
+    </div>
+    ${isEdit?`<button class="danger" onclick="removeTask('${t.id}');closeSheet()">Eliminar tarea</button>`:''}`;
+  openScrim();
+}
+
+function saveFromForm(id){
+  const title = $('f_title').value.trim();
+  if(!title){ toast('El título es obligatorio'); return; }
+  const area = $('f_area').value;
+  if(!area){ toast('Elige un área'); return; }
+  const fields = {
+    title, area,
+    project:  $('f_project').value.trim(),
+    owner:    $('f_owner').value,
+    priority: $('f_priority').value,
+    status:   $('f_status').value,
+    due_date: $('f_due').value,
+    notes:    $('f_notes').value.trim()
+  };
+  if(id){
+    const cur = state.tasks[id];
+    upsert({ id, ...fields }, cur.version);
+  }else{
+    const sameArea = Object.values(state.tasks).filter(x=>!x.deleted && x.area===area);
+    const maxSort = sameArea.reduce((m,x)=>Math.max(m, x.sort_index||0), 0);
+    upsert({ id: uuid(), ...fields, sort_index: maxSort + 10 }, null);
+  }
+  closeSheet();
+}
+
+// ---- Resolución de conflicto de versión -------------------------
+function showConflict(mine, server){
+  $('sheet').innerHTML = `
+    <h2>Esta tarea cambió en otro sitio</h2>
+    <p style="color:var(--muted); font-size:14px; margin:0 0 14px">
+      Otra ventana o una edición en la hoja modificó esta tarea (ahora va por la versión ${server.version}).
+      Elige con cuál te quedas.</p>
+    <div class="task" style="--rail:#9AA0A6"><div class="task-body">
+      <div class="task-title">${esc(server.title)}</div>
+      <div class="task-meta"><span class="pill due">${prettyStatus(server.status)}</span>
+      ${server.owner?`<span class="pill owner">↩ ${esc(server.owner)}</span>`:''}</div>
+    </div></div>
+    <div class="sheet-actions">
+      <button class="ghost" onclick="takeServer('${server.id}')">Usar la del servidor</button>
+      <button class="primary" onclick='forceMine(${JSON.stringify(mine).replace(/'/g,"&#39;")}, ${server.version})'>Sobrescribir con la mía</button>
+    </div>`;
+  openScrim();
+}
+function takeServer(id){ render(); closeSheet(); }
+function forceMine(mine, serverVersion){ closeSheet(); upsert(mine, serverVersion); }
+
+// ---- Sheet / scrim ----------------------------------------------
+function openScrim(){ $('scrim').classList.add('open'); requestAnimationFrame(()=>$('sheet').classList.add('open')); }
+function closeSheet(){ $('sheet').classList.remove('open'); $('scrim').classList.remove('open'); }
+
+// ---- Utilidades -------------------------------------------------
+function uuid(){ return (crypto.randomUUID&&crypto.randomUUID()) ||
+  'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return (c==='x'?r:(r&0x3|0x8)).toString(16);}); }
+function esc(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escAttr(s){ return esc(s); }
+function prioLabel(p){ return ({low:'Baja',med:'Media',high:'Alta'})[p]||p; }
+function prettyStatus(s){ return ({todo:'Pendiente',doing:'En curso',done:'Hecha'})[s]||s; }
+function dueLabel(d){
+  if(!d) return '';
+  const today = new Date(); today.setHours(0,0,0,0);
+  const due = new Date(d+'T00:00:00'); const diff = Math.round((due-today)/86400000);
+  let txt = due.toLocaleDateString('es-ES',{day:'numeric',month:'short'});
+  const over = diff < 0;
+  if(diff===0) txt='Hoy'; else if(diff===1) txt='Mañana'; else if(diff<0) txt=`Hace ${-diff}d`;
+  return `<span class="pill due ${over?'overdue':''}">${txt}</span>`;
+}
+let toastT;
+function toast(msg){ const el=$('toast'); el.textContent=msg; el.classList.add('show');
+  clearTimeout(toastT); toastT=setTimeout(()=>el.classList.remove('show'),2600); }
+
+// ---- Eventos ----------------------------------------------------
+$('fab').onclick = openNew;
+$('scrim').onclick = closeSheet;
+
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js').catch(()=>{});
+}
+boot();
+</script>
+</body>
+</html>
